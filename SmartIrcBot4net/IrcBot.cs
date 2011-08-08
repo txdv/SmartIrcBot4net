@@ -115,6 +115,16 @@ namespace SmartIrcBot4net
         Plugin(plugin as IrcBotPlugin);
       }
     }
+
+    public void LoadTryParse(Assembly assembly)
+    {
+      Trigger.Load(assembly);
+    }
+
+    public bool LoadTryParse(Type type)
+    {
+      return Trigger.Load(type);
+    }
   }
 }
 

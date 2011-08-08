@@ -148,6 +148,25 @@ namespace Test
     }
   }
 
+  public class FloodPlugin : IrcBotPlugin
+  {
+    [OnCommand("join (?<channel>(.+))")]
+    public void JoinCommand(string channel)
+    {
+      Bot.RfcJoin(channel);
+    }
+
+    [OnCommand(@"flood (?<count>(\d+))")]
+    public void Flood(string channel, int count)
+    {
+      DateTime now = DateTime.Now;
+      for (int i = 0; i < count; i++) {
+        Bot.SendMessage(SendType.Message, channel, "test string");
+      }
+      Console.WriteLine(DateTime.Now - now);
+    }
+  }
+
   class MainClass
   {
     public static void Main(string[] args)
@@ -156,14 +175,20 @@ namespace Test
 
       IrcBot bot = new IrcBot(context);
 
+      bot.SendDelay = 0;
+
       var adminPlugin = new AdminPlugin("txdv");
+
       bot.Plugin(adminPlugin);
       bot.Plugin(new TestPlugin(adminPlugin));
+      bot.Plugin(new FloodPlugin());
+
+      //bot.SendDelay = 0;
 
       bot.Connect(new string[] { "127.0.0.1" }, 6667, delegate {
         bot.ActiveChannelSyncing = true;
         bot.Login("bot", "test bot");
-        bot.RfcJoin("#test");
+        bot.RfcJoin("#six");
       });
 
       context.Start();

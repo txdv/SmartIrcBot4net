@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Reflection;
 using System.Text.RegularExpressions;
 
@@ -9,6 +10,78 @@ namespace SmartIrcBot4net
 {
   class Trigger
   {
+    private static Dictionary<Type, MethodInfo> tryParseMethods = new Dictionary<Type, MethodInfo>();
+
+    static Trigger()
+    {
+      foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies()) {
+        Load(assembly);
+      }
+    }
+
+    public static void Load(Assembly assembly)
+    {
+        foreach (var type in assembly.GetTypes()) {
+          Load(type);
+        }
+    }
+
+    public static bool Load(Type type)
+    {
+      var method = GetTryParseMethod(type);
+      if (method != null) {
+        tryParseMethods[type] = method;
+        return true;
+      } else {
+        return false;
+      }
+    }
+
+    static MethodInfo GetTryParseMethod(Type type)
+    {
+      foreach (var method in type.GetMethods()) {
+        var param = method.GetParameters();
+        if ((method.Name == "TryParse") && (param.Length == 2)) {
+          if (param[0].ParameterType == typeof(string) && param[1].IsOut && type == param[1].ParameterType.GetElementType()) {
+            return method;
+          }
+        }
+      }
+      return null;
+    }
+
+    protected bool TryParse(Type type, string text, out object obj)
+    {
+      obj = null;
+      var tryParse = GetTryParse(type);
+
+      Console.WriteLine(tryParse == null);
+
+      if (tryParse == null) {
+        return false;
+      }
+
+      var args = new object[] { text, null };
+      tryParse.Invoke(null, args);
+      obj = args[1];
+      return true;
+    }
+
+
+    protected bool HasTryParse(Type type)
+    {
+      return GetTryParseMethod(type) != null;
+    }
+
+    protected MethodInfo GetTryParse(Type type)
+    {
+      MethodInfo mi;
+      if (tryParseMethods.TryGetValue(type, out mi)) {
+        return mi;
+      }
+      return null;
+    }
+
     protected IrcBotPlugin Plugin { get; set; }
 
     public Trigger(IrcBotPlugin plugin)
@@ -102,6 +175,20 @@ namespace SmartIrcBot4net
       } else if (info.ParameterType == typeof(string)) {
         return groups.Get(info.Name);
       } else {
+        if (HasTryParse(info.ParameterType)) {
+          string str = groups.Get(info.Name);
+          if (str == null) {
+            return null;
+          } else {
+            object o;
+            if (TryParse(info.ParameterType, str, out o)) {
+              return o;
+            } else {
+              return null;
+            }
+          }
+
+        }
         return null;
       }
     }
@@ -115,8 +202,6 @@ namespace SmartIrcBot4net
 
         if (o != null) {
           values[i] = o;
-        } else if (parameters[i].ParameterType == typeof(string)) {
-          Console.WriteLine ("nulllizable");
         }
 
         if (values[i] == null) {

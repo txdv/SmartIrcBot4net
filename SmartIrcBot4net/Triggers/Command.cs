@@ -144,18 +144,6 @@ namespace SmartIrcBot4net
   class PropertyCommandTrigger : CommandTrigger
   {
 
-    static Type[] genericTypes = new Type[] { typeof(byte), typeof(short), typeof(ushort), typeof(int), typeof(uint), typeof(long), typeof(ulong) };
-
-    static bool IsGeneric(Type type)
-    {
-      foreach (var gtype in genericTypes) {
-        if (type == gtype) {
-          return true;
-        }
-      }
-      return false;
-    }
-
     public PropertyInfo Property  { get; set; }
 
     public PropertyCommandTrigger(IrcBotPlugin plugin, OnCommandAttribute attribute, PropertyInfo property)
@@ -168,24 +156,13 @@ namespace SmartIrcBot4net
     {
       var type = Property.PropertyType;
 
-      MethodInfo tryParse = null;
-      var methods = type.GetMethods();
-      foreach (var method in methods) {
-        if ((method.Name == "TryParse") && (method.GetParameters().Length == 2)) {
-          tryParse = method;
-        }
-      }
-
-      object o = null;
-
-      var args = new object[] { text, o };
-      bool res = (bool)tryParse.Invoke(null, args);
-
-      if (!res) {
+      object obj = null;
+      if (TryParse(type, text, out obj)) {
+        SetValue(obj);
+        return true;
+      } else {
         return false;
       }
-
-      return SetValue(args[1]);
     }
 
     public override bool Handle(MessageType type, IrcEventArgs args)
@@ -216,7 +193,7 @@ namespace SmartIrcBot4net
         }
 
         return SetValue(value);
-      } else if (IsGeneric(t)) {
+      } else if (HasTryParse(t)) {
         return GenericSetValue(stringValue);
       } else {
         return false;
