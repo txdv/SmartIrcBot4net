@@ -12,6 +12,66 @@ namespace SmartIrcBot4net
 {
   public abstract class IrcBotPlugin
   {
+    internal List<PreCommandTrigger> PreCommands { get; set; }
+    internal List<CommandTrigger>    Commands    { get; set; }
+    internal List<JoinTrigger>       Joins       { get; set; }
+
+    public IrcBotPlugin()
+    {
+      Commands    = new List<CommandTrigger>();
+      Joins       = new List<JoinTrigger>();
+      PreCommands = new List<PreCommandTrigger>();
+    }
+
+    internal void Register()
+    {
+      var type = GetType();
+
+      foreach (var member in type.GetMembers()) {
+        foreach (object attribute in member.GetCustomAttributes(true)) {
+          if (attribute is OnCommandAttribute) {
+            if (member is MethodInfo) {
+              Commands.Add(new MethodCommandTrigger(this, attribute as OnCommandAttribute, member as MethodInfo));
+            } else if (member is PropertyInfo) {
+              Commands.Add(new PropertyCommandTrigger(this, attribute as OnCommandAttribute, member as PropertyInfo));
+            }
+          } else if (attribute is OnJoinAttribute) {
+            if (member is MethodInfo) {
+              Joins.Add(new JoinTrigger(this, member as MethodInfo));
+            }
+          } else if (attribute is PreCommandAttribute) {
+            if (member is MethodInfo) {
+              PreCommands.Add(new MethodPreCommandTrigger(this, attribute as PreCommandAttribute, member as MethodInfo));
+            } else if (member is PropertyInfo) {
+              PreCommands.Add(new PropertyPreCommandTrigger(this, attribute as PreCommandAttribute, member as PropertyInfo));
+            }
+          }
+        }
+      }
+    }
+
+    internal void HandleOnJoin(object sender, JoinEventArgs args)
+    {
+      foreach (var join in Joins) {
+        join.Handle(args);
+      }
+    }
+
+    internal void HandleOnMessage(MessageType type, IrcEventArgs args)
+    {
+      foreach (var pre in PreCommands) {
+        if (!pre.Handle(type, args)) {
+          return;
+        }
+      }
+
+      foreach (var command in Commands) {
+        if (command.Handle(type, args)) {
+          return;
+        }
+      }
+    }
+
     public IrcBot Bot { get; internal set; }
     public string DefaultPrefix { get; set; }
   }
@@ -27,9 +87,7 @@ namespace SmartIrcBot4net
   {
     public string DefaultPrefix { get; set; }
 
-    List<CommandTrigger> commands = new List<CommandTrigger>();
-    List<JoinTrigger>    joins    = new List<JoinTrigger>();
-    List<PreCommandTrigger> pre   = new List<PreCommandTrigger>();
+    private List<IrcBotPlugin> plugins = new List<IrcBotPlugin>();
 
     public IrcBot(Context context)
       : base(context)
@@ -43,25 +101,15 @@ namespace SmartIrcBot4net
 
     void HandleOnJoin(object sender, JoinEventArgs e)
     {
-      foreach (var join in joins) {
-        if (join.Handle(e)) {
-          return;
-        }
+      foreach (var plugin in plugins) {
+        plugin.HandleOnJoin(sender, e);
       }
     }
 
     void HandleOnMessage(MessageType type, IrcEventArgs args)
     {
-      foreach (var precommand in pre) {
-        if (!precommand.Handle(type, args)) {
-          return;
-        }
-      }
-
-      foreach (var command in commands) {
-        if (command.Handle(type, args)) {
-          return;
-        }
+      foreach (var plugin in plugins) {
+        plugin.HandleOnMessage(type, args);
       }
     }
 
@@ -83,29 +131,10 @@ namespace SmartIrcBot4net
 
       plugin.Bot = this;
 
-      var type = plugin.GetType();
+      plugin.Register();
 
-      foreach (var member in type.GetMembers()) {
-        foreach (object attribute in member.GetCustomAttributes(true)) {
-          if (attribute is OnCommandAttribute) {
-            if (member is MethodInfo) {
-              commands.Add(new MethodCommandTrigger(plugin, attribute as OnCommandAttribute, member as MethodInfo));
-            } else if (member is PropertyInfo) {
-              commands.Add(new PropertyCommandTrigger(plugin, attribute as OnCommandAttribute, member as PropertyInfo));
-            }
-          } else if (attribute is OnJoinAttribute) {
-            if (member is MethodInfo) {
-              joins.Add(new JoinTrigger(plugin, member as MethodInfo));
-            }
-          } else if (attribute is PreCommandAttribute) {
-            if (member is MethodInfo) {
-              pre.Add(new MethodPreCommandTrigger(plugin, attribute as PreCommandAttribute, member as MethodInfo));
-            } else if (member is PropertyInfo) {
-              pre.Add(new PropertyPreCommandTrigger(plugin, attribute as PreCommandAttribute, member as PropertyInfo));
-            }
-          }
-        }
-      }
+      plugins.Add(plugin);
+
       return true;
     }
 
