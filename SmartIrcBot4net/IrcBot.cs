@@ -150,9 +150,9 @@ namespace SmartIrcBot4net
       Trigger.Load(assembly);
     }
 
-    public bool LoadTryParse(Type type)
+    public void LoadTryParse(Type type)
     {
-      return Trigger.Load(type);
+      Trigger.Load(type);
     }
   }
 }

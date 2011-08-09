@@ -26,36 +26,32 @@ namespace SmartIrcBot4net
         }
     }
 
-    public static bool Load(Type type)
+    public static void Load(Type type)
     {
-      var method = GetTryParseMethod(type);
-      if (method != null) {
-        tryParseMethods[type] = method;
-        return true;
-      } else {
-        return false;
+      foreach (var tuple in GetTryParseMethod(type)) {
+        if (!tryParseMethods.ContainsKey(tuple.Item1)) {
+          tryParseMethods[tuple.Item1] = tuple.Item2;
+        }
       }
     }
 
-    static MethodInfo GetTryParseMethod(Type type)
+    static IEnumerable<Tuple<Type, MethodInfo>> GetTryParseMethod(Type type)
     {
-      foreach (var method in type.GetMethods()) {
+      foreach (var method in type.GetMethods(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)) {
         var param = method.GetParameters();
         if ((method.ReturnType == typeof(bool)) && (method.Name == "TryParse") && (param.Length == 2)) {
-          if (param[0].ParameterType == typeof(string) && param[1].IsOut && type == param[1].ParameterType.GetElementType()) {
-            return method;
+          if (param[0].ParameterType == typeof(string) && param[1].IsOut) {
+            yield return Tuple.Create<Type, MethodInfo>(param[1].ParameterType.GetElementType(), method);
           }
         }
       }
-      return null;
+      yield break;
     }
 
     protected bool TryParse(Type type, string text, out object obj)
     {
       obj = null;
       var tryParse = GetTryParse(type);
-
-      Console.WriteLine(tryParse == null);
 
       if (tryParse == null) {
         return false;
