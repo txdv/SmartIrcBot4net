@@ -41,7 +41,7 @@ namespace SmartIrcBot4net
     {
       foreach (var method in type.GetMethods()) {
         var param = method.GetParameters();
-        if ((method.Name == "TryParse") && (param.Length == 2)) {
+        if ((method.ReturnType == typeof(bool)) && (method.Name == "TryParse") && (param.Length == 2)) {
           if (param[0].ParameterType == typeof(string) && param[1].IsOut && type == param[1].ParameterType.GetElementType()) {
             return method;
           }
