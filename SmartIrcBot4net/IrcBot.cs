@@ -59,12 +59,32 @@ namespace SmartIrcBot4net
 
     internal void HandleOnMessage(MessageType type, IrcEventArgs args)
     {
-      foreach (var pre in PreCommands) {
-        if (!pre.Handle(type, args)) {
-          return;
-        }
+      int count = 0;
+      bool allTrue = true;
+
+      if (PreCommands.Count == 0) {
+        ExecuteCommands(type, args);
+        return;
       }
 
+      for (int i = 0; i < PreCommands.Count; i++) {
+        PreCommands[i].Handle(type, args, delegate (bool value) {
+
+          if (!value) {
+            allTrue = false;
+          }
+
+          count++;
+
+          if (allTrue && count == PreCommands.Count) {
+            ExecuteCommands(type, args);
+          }
+        });
+      }
+    }
+
+    void ExecuteCommands(MessageType type, IrcEventArgs args)
+    {
       foreach (var command in Commands) {
         if (command.Handle(type, args)) {
           return;
@@ -73,6 +93,11 @@ namespace SmartIrcBot4net
     }
 
     public IrcBot Bot { get; internal set; }
+    public Context Context {
+      get {
+        return Bot.Context;
+      }
+    }
     public string DefaultPrefix { get; set; }
   }
 

@@ -6,6 +6,8 @@ using System.Text.RegularExpressions;
 using SmartIrcBot4net.Extensions;
 using Meebey.SmartIrc4net;
 
+using Manos.IO;
+
 namespace SmartIrcBot4net
 {
   abstract class PreCommandTrigger : Trigger
@@ -18,24 +20,61 @@ namespace SmartIrcBot4net
       Attribute = attribute;
     }
 
-    public abstract bool Handle(MessageType type, IrcEventArgs args);
+    public abstract void Handle(MessageType type, IrcEventArgs args, Action<bool> callback);
   }
 
   class MethodPreCommandTrigger : PreCommandTrigger
   {
     MethodInfo Method { get; set; }
+    bool ReturnsBool { get; set; }
 
     public MethodPreCommandTrigger(IrcBotPlugin plugin, PreCommandAttribute attribute, MethodInfo method)
       : base(plugin, attribute)
     {
       Method = method;
+      if (method.ReturnType == typeof(bool)) {
+        ReturnsBool = true;
+      } else if (method.ReturnType != typeof(void)) {
+        throw new Exception("method has to return either void or bool");
+      }
     }
 
-    public override bool Handle(MessageType type, IrcEventArgs args)
+    public override void Handle(MessageType type, IrcEventArgs args, Action<bool> callback)
     {
-      return (bool)Invoke(Method, GetValues(Method.GetParameters(), (info) => {
-        return Process(info, args);
-      }));
+      if (ReturnsBool) {
+        bool result = (bool)Invoke(Method, GetValues(Method.GetParameters(), (info) => {
+          return Process(info, args);
+        }));
+        callback(result);
+      } else {
+        Invoke(Method, GetValues(Method.GetParameters(), (info) => {
+          if (info.ParameterType == typeof(Action<bool>)) {
+            return TimeoutCall(Attribute.Timeout, delegate (bool res) {
+              callback(res);
+            }, Attribute.DefaultValue);
+          } else {
+            return Process(info, args);
+          }
+        }));
+      }
+    }
+
+    Action<bool> TimeoutCall(TimeSpan span, Action<bool> callback, bool defaultValue = false)
+    {
+      var timer = Context.CreateTimerWatcher(span, delegate {
+        callback(defaultValue);
+      });
+
+      Action<bool> ret = delegate (bool res) {
+        if (timer.IsRunning) {
+          timer.Stop();
+          callback(res);
+        }
+      };
+
+      timer.Start();
+
+      return ret;
     }
   }
 
@@ -49,18 +88,18 @@ namespace SmartIrcBot4net
       Property = property;
     }
 
-    public override bool Handle(MessageType type, IrcEventArgs args)
+    public override void Handle(MessageType type, IrcEventArgs args, Action<bool> callback)
     {
       if (Property.PropertyType == typeof(string)) {
         string val = Property.GetValue(Plugin, null) as string;
         var b = GetBool(val);
         if (b.HasValue) {
-          return b.Value;
+          callback(b.Value);
         } else {
           throw new Exception(string.Format("string property value not supported: {0}", val));
         }
       } else if (Property.PropertyType == typeof(bool)) {
-        return (bool)Property.GetValue(Plugin, null);
+        callback((bool)Property.GetValue(Plugin, null));
       } else {
         throw new Exception("Property type not supported");
       }

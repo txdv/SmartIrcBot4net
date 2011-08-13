@@ -70,6 +70,24 @@ namespace SmartIrcBot4net
 
   public class PreCommandAttribute : IrcBotAttribute
   {
+    public PreCommandAttribute()
+      : this(0)
+    {
+    }
+
+    public PreCommandAttribute(int timeout)
+      : this(timeout, false)
+    {
+    }
+
+    public PreCommandAttribute(int timeout, bool defaultValue)
+    {
+      Timeout = TimeSpan.FromMilliseconds(timeout);
+      DefaultValue = defaultValue;
+    }
+
+    public TimeSpan Timeout { get; set; }
+    public bool DefaultValue { get; set; }
   }
 
   public class OnJoinAttribute : IrcBotAttribute

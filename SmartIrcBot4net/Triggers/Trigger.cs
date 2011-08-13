@@ -6,6 +6,8 @@ using System.Text.RegularExpressions;
 using Meebey.SmartIrc4net;
 using SmartIrcBot4net.Extensions;
 
+using Manos.IO;
+
 namespace SmartIrcBot4net
 {
   class Trigger
@@ -78,7 +80,12 @@ namespace SmartIrcBot4net
       return null;
     }
 
-    protected IrcBotPlugin Plugin { get; set; }
+    public IrcBotPlugin Plugin { get; protected set; }
+    public Context Context {
+      get {
+        return Plugin.Context;
+      }
+    }
 
     public Trigger(IrcBotPlugin plugin)
     {
